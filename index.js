@@ -3,8 +3,9 @@ let morgan = require('morgan');
 let bodyParser = require('body-parser');
 let mongoose = require('mongoose');
 let jsonParser = bodyParser.json();
-let {StudentList} = require('./model');
+
 let {DATABASE_URL, PORT} = require('./config');
+let { StudentList } = require('./model');
 
 let app = express();
 
@@ -24,158 +25,246 @@ app.use(function(req, res, next) {
 });
 
 let estudiantes = [{
-    nombre : "Miguel",
-    apellido : "Ángeles",
-    matricula : 1730939
+    nombre: "Miguel",
+    apellido: "Angeles",
+    matricula: 1730939
 },
 {
-    nombre : "Erick",
-    apellido : "González",
-    matricula : 1039859
-}, 
-{
-    nombre : "Victor",
-    apellido : "Villareal",
-    matricula : 1039863
+    nombre: "Erick",
+    apellido: "Gonzalez",
+    matricula: 1039859
 },
 {
-    nombre : "Carlos",
-    apellido : "Estrada",
-    matricula : 1039919
+    nombre: "Victor",
+    apellido: "Villarreal",
+    matricula: 1039863
 },
 {
-    nombre : "Francisco",
-    apellido : "Sánchez",
-    matricula : 1196903
-},
-{
-    nombre : "Victor",
-    apellido : "Cárdenas",
-    matricula : 816350
+    nombre: "Victor",
+    apellido: "Cardenas",
+    matricula: 816350
 }];
-
-app.get('/api/getById', (req, res) => {
-    let id = req.query.id;
-
-    let result = estudiantes.find((elemento) => {
-        if (elemento.matricula == id) {
-            return elemento;
-        }
-    });
-
-    if (result) {
-        return res.status(200).json(result);
-    }
-    else {
-        res.statusMessage = "El alumno no se encuentra en la lista.";
-        return res.status(404).send();
-    }
-});
-
-// http://localhost:8080/api/getById?id=1039919
-
-app.get('/api/getByName/:name', (req, res) => {
-    let name = req.params.name;
-
-    let result = estudiantes.filter((elemento) => {
-        if (elemento.nombre === name) {
-            return elemento;
-        }
-    });
-
-    if (result.length > 0) {
-        return res.status(200).json(result);
-    }
-    else {
-        res.statusMessage = "El alumno no se encuentra en la lista.";
-        return res.status(404).send();
-    }
-});
-
-// http://localhost:8080/api/getByName/Victor
 
 app.get('/api/students', (req, res) => {
     StudentList.getAll()
         .then(studentList => {
-            return res.status(200).json(studentList);
+            return res.status(200).json(studentList)
         })
         .catch(error => {
-            res.statusMessage = "Hubo un error de conexión con la BD.";
+            console.log(error);
+            res.statusMessage = "Hubo un error de conexion con la DB";
             return res.status(500).send();
         });
+});
 
-    res.status(200).json(estudiantes);
+app.get('/api/getById', (req, res) => {
+    let id = req.query.id;
+    let result = StudentList.getById(id)
+        .then((student) => {
+            if (student == null) {
+                res.statusMessage = "No existe alumno con el IDs";
+                return res.status(404).send();
+            } else {
+                return res.status(200).json(student)
+            }
+        })
+        .catch(error => {
+            console.log(error);
+            res.statusMessage = "Hubo un error de conexion con la DB";
+            return res.status(500).send();
+        });
+/*
+    } else {
+        res.statusMessage = "El alumno no se encuentra en la lista";
+        return res.status(404).send();
+    }*/
+});
+
+app.get('/api/getByName/:name', (req, res) => {
+    let name = req.params.name;
+    let result = StudentList.getByName(name)
+        .then((student) => {
+            if (student.length < 1) {
+                res.statusMessage = "No existe alumno con el Nombre";
+                return res.status(404).send();
+            } else {
+                return res.status(200).json(student)
+            }
+        })
+        .catch(error => {
+            console.log(error);
+            res.statusMessage = "Hubo un error de conexion con la DB";
+            return res.status(500).send();
+        });
 });
 
 app.post('/api/newStudent', jsonParser, (req, res) => {
-    let nombre = req.body.nombre;
-    let apellido = req.body.apellido;
-    let matricula = req.body.matricula;
-
-    if (nombre !== undefined && apellido !== undefined && matricula !== undefined) {
-        let result = estudiantes.find(estudiante => estudiante.matricula === matricula);
-
-        if (result === undefined) {
-            let estudiante = {nombre, apellido, matricula};
-            estudiantes.push(estudiante);
-            res.statusMessage = `Estudiante ${nombre} ${apellido} con la matrícula ${matricula} ha sido agregado a la lista de estudiantes.`;
-            return res.status(201).send();
-        }
-        else {
-            res.statusMessage = "La mátricula ingresada ya existe.";
-            return res.status(409).send();
-        }
+    let nombre, matricula, apellido;
+    if (req.body.nombre == undefined) {
+        res.statusMessage = "Sin nombre";
+        return res.status(406).json({});
     }
-    else {
-        res.statusMessage = "Ingrese todos los elementos (nombre, apellido y matrícula).";
-        return res.status(406).send();
+    if (req.body.matricula == undefined) {
+        res.statusMessage = "Sin matricula";
+        return res.status(406).json({});
     }
+    if (req.body.apellido == undefined) {
+        res.statusMessage = "Sin apellido";
+        return res.status(406).json({});
+    }
+    nombre = req.body.nombre;
+    apellido = req.body.apellido;
+    matricula = req.body.matricula;
+
+    StudentList.getById(matricula)
+        .then((student) => {        
+            if (student != null) {
+                res.statusMessage = "Matricula ya existe";
+                return res.status(409).json({});
+            } else {
+                let nuevoEstudiante = {
+                    nombre: nombre,
+                    apellido: apellido,
+                    matricula: matricula
+                }
+            
+                StudentList.createNewStudent(nuevoEstudiante)
+                    .then((ns) => {
+                        return ns;
+                    })
+                    .catch(error => {
+                        console.log(error);
+                        res.statusMessage = "Hubo un error de conexion con la DB";
+                        return res.status(500).send();
+                    })
+            
+                return res.status(201).json(nuevoEstudiante);
+            }
+        })
+        .catch(error => {
+            console.log(error);
+            res.statusMessage = "Hubo un error de conexion con la DB";
+            return res.status(500).send();
+        });
+
+
 });
 
 app.put('/api/updateStudent/:id', jsonParser, (req, res) => {
-    let nombre = req.body.nombre;
-    let apellido = req.body.apellido;
-    let matricula = req.body.matricula;
-
-    if (matricula !== undefined && (nombre !== undefined || apellido !== undefined)) {
-        
+    let nombre, matricula, apellido;
+    if (req.body.matricula == undefined) {
+        res.statusMessage = "Sin matricula";
+        return res.status(406).json({});
     }
-    else {
-        res.statusMessage("Ingrese una matrícula y un nombre o un apllido.");
-        return res.status(406).send();
+
+    matricula = req.body.matricula;
+
+    if (req.body.nombre != undefined) {
+        nombre = req.body.nombre;
+    }
+    if (req.body.apellido != undefined) {
+        apellido = req.body.apellido;
+    }
+
+    if (nombre == undefined && apellido == undefined) {
+        res.statusMessage = "Sin nombre o apellido";
+        return res.status(406).json({});
+    }
+
+    if (matricula != req.params.id) {
+        res.statusMessage = "Id y matricula no coinciden";
+        return res.status(409).json({});
+    }
+
+    let found = false;
+    let modified;
+
+    estudiantes.forEach((el) => {
+        if (el.matricula === matricula) {
+            if (nombre != undefined) {
+                el.nombre = nombre;
+            }
+            if (apellido != undefined) {
+                el.apellido = apellido;
+            }
+            modified = el;
+            found = true;
+        }
+    });
+
+    if (found) {
+        return res.status(202).json(modified);
+    } else {
+        res.statusMessage = "Matricula no existe";
+        res.status(404).json({});
+    }
+
+});
+
+app.delete('/api/deleteStudent', jsonParser, (req, res) => {
+    let matricula;
+    if (req.body.matricula == undefined) {
+        res.statusMessage = "Sin matricula";
+        res.status(406).json({});
+    }
+
+    matricula = req.body.matricula;
+
+    if (req.query.id != matricula) {
+        res.statusMessage = "Matriculas no coinciden";
+        res.status(409).json({});
+    }
+
+    let idx;
+
+    let result = estudiantes.find((el, i) => {
+        if (el.matricula === matricula) {
+            idx = i;
+            return el;
+        }
+    })
+
+    if (result != undefined) {
+        estudiantes.splice(idx, 1);
+        return res.status(204).json({});
+    } else {
+        res.statusMessage = "Matricula no existe";
+        res.status(404).json({});
     }
 });
 
-function runServer(port, databaseUrl){
-    return new Promise( (resolve, reject ) => {
+let server;
+
+function runServer(port, databaseUrl) {
+    return new Promise((resolve, reject) => {
         mongoose.connect(databaseUrl, response => {
-            if ( response ){
+            if (response) {
                 return reject(response);
             }
-            else{
+            else {
                 server = app.listen(port, () => {
-                    console.log( "App is running on port " + port );
+                    console.log("App is running on port " + port);
                     resolve();
                 })
-                .on( 'error', err => {
-                    mongoose.disconnect();
-                    return reject(err);
-                })
+                    .on('error', err => {
+                        mongoose.disconnect();
+                        return reject(err);
+                    })
             }
         });
     });
 }
-   
-function closeServer(){
+
+function closeServer() {
     return mongoose.disconnect()
         .then(() => {
             return new Promise((resolve, reject) => {
                 console.log('Closing the server');
-                server.close( err => {
-                    if (err){
+                server.close(err => {
+                    if (err) {
                         return reject(err);
                     }
-                    else{
+                    else {
                         resolve();
                     }
                 });
